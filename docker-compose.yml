@@ -1,0 +1,141 @@
+version: "3.8"
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg13
+    container_name: timescaledb
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - ./timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    ports:
+      - 6379:6379
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - rmq-data:/var/lib/rabbitmq
+    networks:
+      - backend
+  
+  light-sensor:
+    build:
+      context: ./light_sensor
+      dockerfile: Dockerfile
+    container_name: light-sensor
+    restart: always
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+  
+  wlan-probe:
+    build:
+      context: ./wlan_probe
+      dockerfile: Dockerfile
+    container_name: wlan-probe
+    restart: always
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+
+  consumer:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    container_name: consumer
+    restart: always
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+    depends_on:
+      - rabbitmq
+      - redis
+    networks:
+      - backend
+
+  fusion:
+    build:
+      context: ./fusion
+      dockerfile: Dockerfile
+    container_name: fusion
+    restart: always
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    ports:
+      - 3000:3000
+    environment:
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources/
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards/
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - backend
+
+volumes:
+  pg-data:
+  redis-data:
+  rmq-data:
+  grafana-data:
+
+networks:
+  backend:
+    driver: bridge
