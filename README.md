@@ -11,7 +11,7 @@ This repository contains PoCs for a public transport analytics system using serv
 ```
 docker compose up
 ```
-A Grafana dashboard is provided for monitoring the demo.
+A Grafana dashboard is provided for monitoring the demo at http://localhost:3000. The default credentials are `admin`/`admin`.
 
 ## Description
 
