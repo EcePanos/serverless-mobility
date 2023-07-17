@@ -25,7 +25,3 @@ This demo includes the following components:
 - A simulated data fusion engine (Python), that receives the messages from the cache, calculates the bus occupancy by averaging the values received from the sensors, and stores the results in the database.
 - A database (PostgreSQL with the TimescaleDB plugin), where the data fusion engine stores the results.
 - A Grafana dashboard, where the results are visualized.
-
-## Known issues
-
-- When using the new version of Docker compose, after shutting down the demo, the Docker CLI will hang, needing to force quit.
